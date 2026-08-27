@@ -44,6 +44,7 @@ function buildBaseLayers(localKeys, srv){
   const tfKey = (localKeys.thunderforest || srv.thunderforestKey || '').trim();
 
   const layers = {
+    '🚴 CyclOSM 骑行 (免Key)': L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',{maxZoom:19,subdomains:'abc',attribution:'&copy; CyclOSM, &copy; OSM'}),
     'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}),
     'ESRI 卫星': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles &copy; Esri'}),
     'OpenTopo 地形': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap contributors'})
