@@ -5,7 +5,6 @@ export async function onRequest(context) {
   const z = url.searchParams.get('z');
   const x = url.searchParams.get('x');
   const y = url.searchParams.get('y');
-  const r = url.searchParams.get('r') || '';
   const s = url.searchParams.get('s') || 'a';
 
   // 状态检测探针
@@ -13,8 +12,7 @@ export async function onRequest(context) {
     return new Response(JSON.stringify({
       ok: true,
       hasTianditu: !!env.TIANDITU_KEY,
-      hasThunderforest: !!env.THUNDERFOREST_KEY,
-      hasCarto: !!env.CARTO_KEY
+      hasThunderforest: !!env.THUNDERFOREST_KEY
     }), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
@@ -45,14 +43,6 @@ export async function onRequest(context) {
     targetUrl = `https://t${s}.tianditu.gov.cn/ter_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ter&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&tk=${env.TIANDITU_KEY}`;
   } else if (service === 'tdt_cta' && env.TIANDITU_KEY) {
     targetUrl = `https://t${s}.tianditu.gov.cn/cta_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cta&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&tk=${env.TIANDITU_KEY}`;
-  }
-  // CARTO
-  else if (service === 'carto_voyager') {
-    const keyParam = env.CARTO_KEY ? `?api_key=${env.CARTO_KEY}` : '';
-    targetUrl = `https://${s}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}${r}.png${keyParam}`;
-  } else if (service === 'carto_dark') {
-    const keyParam = env.CARTO_KEY ? `?api_key=${env.CARTO_KEY}` : '';
-    targetUrl = `https://${s}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}${r}.png${keyParam}`;
   } else {
     return new Response('Service not found or corresponding API Key not set in Cloudflare Pages Environment Variables', { status: 404 });
   }
