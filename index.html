@@ -64,22 +64,22 @@ function buildBaseLayers(localKeys, srv){
 }
 
 let userKeys = getStoredKeys();
+let userSelectedLayerName = localStorage.getItem('track_analyzer_selected_layer');
 let baseLayers = buildBaseLayers(userKeys, serverConfig);
-const defaultLayer = baseLayers['🇨🇳 天地图 矢量+注记'] || baseLayers['🚴 CyclOSM 骑行 (免Key)'] || baseLayers['OpenStreetMap'] || Object.values(baseLayers)[0];
-const map = L.map('map',{preferCanvas:true,layers:[defaultLayer]}).setView([30,104],6);
+const defaultLayerName = userSelectedLayerName && baseLayers[userSelectedLayerName] ? userSelectedLayerName : (baseLayers['🇨🇳 天地图 矢量+注记'] ? '🇨🇳 天地图 矢量+注记' : Object.keys(baseLayers)[0]);
+const map = L.map('map',{preferCanvas:true,layers:[baseLayers[defaultLayerName]]}).setView([30,104],6);
 let layerControl = L.control.layers(baseLayers,null,{position:'topright'}).addTo(map);
+
+map.on('baselayerchange', e => {
+  userSelectedLayerName = e.name;
+  localStorage.setItem('track_analyzer_selected_layer', e.name);
+});
 
 function reloadBaseLayers(){
   userKeys = getStoredKeys();
   const newLayers = buildBaseLayers(userKeys, serverConfig);
-  
-  let currentLayerName = null;
-  map.eachLayer(l => {
-    for(const [name, layer] of Object.entries(baseLayers)){
-      if(l === layer || (layer.hasLayer && layer.hasLayer(l))) currentLayerName = name;
-    }
-  });
 
+  // 从地图中移除旧的底图图层
   for(const layer of Object.values(baseLayers)){
     if(map.hasLayer(layer)) map.removeLayer(layer);
   }
@@ -87,13 +87,17 @@ function reloadBaseLayers(){
   map.removeControl(layerControl);
   baseLayers = newLayers;
   
-  const targetLayer = baseLayers[currentLayerName] || baseLayers['🇨🇳 天地图 矢量+注记'] || baseLayers['🚴 CyclOSM 骑行 (免Key)'] || baseLayers['OpenStreetMap'] || Object.values(baseLayers)[0];
-  if(targetLayer) targetLayer.addTo(map);
+  // 若用户手动选择过且依然存在则尊重用户选择；否则优先使用「天地图 矢量+注记」
+  let targetLayerName = (userSelectedLayerName && baseLayers[userSelectedLayerName]) 
+    ? userSelectedLayerName 
+    : (baseLayers['🇨🇳 天地图 矢量+注记'] ? '🇨🇳 天地图 矢量+注记' : Object.keys(baseLayers)[0]);
+    
+  if(baseLayers[targetLayerName]) baseLayers[targetLayerName].addTo(map);
   
   layerControl = L.control.layers(baseLayers,null,{position:'topright'}).addTo(map);
 }
 
-// 自动拉取 Cloudflare Pages 环境变量配置并直连
+// 自动拉取 Cloudflare Pages 环境变量配置并直连天地图
 fetch('/api/config')
   .then(res => res.ok ? res.json() : null)
   .then(data => {
