@@ -37,11 +37,11 @@ function getStoredKeys(){
 function saveStoredKeys(keys){
   localStorage.setItem('track_analyzer_map_keys',JSON.stringify(keys));
 }
-let serverConfig = { ok: false, hasTianditu: false, hasThunderforest: false };
+let serverConfig = { tiandituKey: '', thunderforestKey: '' };
 
-function buildBaseLayers(keys, srv){
-  const tKey = (keys.tianditu||'').trim();
-  const tfKey = (keys.thunderforest||'').trim();
+function buildBaseLayers(localKeys, srv){
+  const tKey = (localKeys.tianditu || srv.tiandituKey || '').trim();
+  const tfKey = (localKeys.thunderforest || srv.thunderforestKey || '').trim();
 
   const layers = {
     'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}),
@@ -53,12 +53,9 @@ function buildBaseLayers(keys, srv){
   if(tfKey){
     layers['⚡ OpenCycleMap 骑行'] = L.tileLayer(`https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=${encodeURIComponent(tfKey)}`,{maxZoom:18,subdomains:'abc',attribution:'&copy; OpenCycleMap, &copy; Thunderforest'});
     layers['⚡ Thunderforest 户外'] = L.tileLayer(`https://{s}.tile.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=${encodeURIComponent(tfKey)}`,{maxZoom:18,subdomains:'abc',attribution:'&copy; Thunderforest'});
-  } else if(srv && srv.hasThunderforest){
-    layers['⚡ OpenCycleMap 骑行 (Cloudflare)'] = L.tileLayer('/api/tile?service=tf_cycle&z={z}&x={x}&y={y}&s={s}',{maxZoom:18,subdomains:'abc',attribution:'&copy; OpenCycleMap, &copy; Thunderforest'});
-    layers['⚡ Thunderforest 户外 (Cloudflare)'] = L.tileLayer('/api/tile?service=tf_outdoors&z={z}&x={x}&y={y}&s={s}',{maxZoom:18,subdomains:'abc',attribution:'&copy; Thunderforest'});
   }
 
-  // 天地图 影像 / 矢量 / 地形 + 注记
+  // 天地图 影像 / 矢量 / 地形 + 注记（由浏览器直连，避免境外代理被天地图 WAF 拦截 418）
   if(tKey){
     layers['🇨🇳 天地图 影像+注记'] = L.layerGroup([
       L.tileLayer(`https://t{s}.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${encodeURIComponent(tKey)}`,{subdomains:'01234567',maxZoom:18}),
@@ -72,19 +69,6 @@ function buildBaseLayers(keys, srv){
       L.tileLayer(`https://t{s}.tianditu.gov.cn/ter_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ter&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${encodeURIComponent(tKey)}`,{subdomains:'01234567',maxZoom:14}),
       L.tileLayer(`https://t{s}.tianditu.gov.cn/cta_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cta&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${encodeURIComponent(tKey)}`,{subdomains:'01234567',maxZoom:14,attribution:'&copy; 天地图'})
     ]);
-  } else if(srv && srv.hasTianditu){
-    layers['🇨🇳 天地图 影像+注记 (Cloudflare)'] = L.layerGroup([
-      L.tileLayer('/api/tile?service=tdt_img&z={z}&x={x}&y={y}&s={s}',{subdomains:'01234567',maxZoom:18}),
-      L.tileLayer('/api/tile?service=tdt_cia&z={z}&x={x}&y={y}&s={s}',{subdomains:'01234567',maxZoom:18,attribution:'&copy; 天地图'})
-    ]);
-    layers['🇨🇳 天地图 矢量+注记 (Cloudflare)'] = L.layerGroup([
-      L.tileLayer('/api/tile?service=tdt_vec&z={z}&x={x}&y={y}&s={s}',{subdomains:'01234567',maxZoom:18}),
-      L.tileLayer('/api/tile?service=tdt_cva&z={z}&x={x}&y={y}&s={s}',{subdomains:'01234567',maxZoom:18,attribution:'&copy; 天地图'})
-    ]);
-    layers['🇨🇳 天地图 地形+注记 (Cloudflare)'] = L.layerGroup([
-      L.tileLayer('/api/tile?service=tdt_ter&z={z}&x={x}&y={y}&s={s}',{subdomains:'01234567',maxZoom:14}),
-      L.tileLayer('/api/tile?service=tdt_cta&z={z}&x={x}&y={y}&s={s}',{subdomains:'01234567',maxZoom:14,attribution:'&copy; 天地图'})
-    ]);
   }
 
   return layers;
@@ -92,7 +76,7 @@ function buildBaseLayers(keys, srv){
 
 let userKeys = getStoredKeys();
 let baseLayers = buildBaseLayers(userKeys, serverConfig);
-const defaultLayer = baseLayers['⚡ OpenCycleMap 骑行 (Cloudflare)'] || baseLayers['⚡ OpenCycleMap 骑行'] || baseLayers['OpenStreetMap'] || Object.values(baseLayers)[0];
+const defaultLayer = baseLayers['⚡ OpenCycleMap 骑行'] || baseLayers['🇨🇳 天地图 影像+注记'] || baseLayers['OpenStreetMap'] || Object.values(baseLayers)[0];
 const map = L.map('map',{preferCanvas:true,layers:[defaultLayer]}).setView([30,104],6);
 let layerControl = L.control.layers(baseLayers,null,{position:'topright'}).addTo(map);
 
@@ -114,14 +98,14 @@ function reloadBaseLayers(){
   map.removeControl(layerControl);
   baseLayers = newLayers;
   
-  const targetLayer = baseLayers[currentLayerName] || baseLayers['⚡ OpenCycleMap 骑行 (Cloudflare)'] || baseLayers['⚡ OpenCycleMap 骑行'] || baseLayers['OpenStreetMap'] || Object.values(baseLayers)[0];
+  const targetLayer = baseLayers[currentLayerName] || baseLayers['⚡ OpenCycleMap 骑行'] || baseLayers['🇨🇳 天地图 影像+注记'] || baseLayers['OpenStreetMap'] || Object.values(baseLayers)[0];
   if(targetLayer) targetLayer.addTo(map);
   
   layerControl = L.control.layers(baseLayers,null,{position:'topright'}).addTo(map);
 }
 
-// 探测 Cloudflare Pages Functions 环境变量
-fetch('/api/tile?service=ping')
+// 自动拉取 Cloudflare Pages 环境变量配置并直连
+fetch('/api/config')
   .then(res => res.ok ? res.json() : null)
   .then(data => {
     if(data && data.ok){
@@ -134,8 +118,8 @@ fetch('/api/tile?service=ping')
 const keyDialog = document.getElementById('keyDialog');
 document.getElementById('keyConfigBtn').onclick = () => {
   const k = getStoredKeys();
-  document.getElementById('tiandituKeyInput').value = k.tianditu || '';
-  document.getElementById('thunderforestKeyInput').value = k.thunderforest || '';
+  document.getElementById('tiandituKeyInput').value = k.tianditu || serverConfig.tiandituKey || '';
+  document.getElementById('thunderforestKeyInput').value = k.thunderforest || serverConfig.thunderforestKey || '';
   keyDialog.showModal();
 };
 document.getElementById('closeDialogBtn').onclick = () => keyDialog.close();
